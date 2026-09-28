@@ -1,0 +1,30 @@
+{
+  "name": "reihan-nst-backend",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@types/bun": "latest",
+    "@types/jsonwebtoken": "^9.0.10",
+    "husky": "^9.1.7",
+    "prisma": "^6.19.0"
+  },
+  "peerDependencies": {
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "@nodewave/prisma-ezfilter": "^0.2.1",
+    "hono": "^4.13.10",
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.6.5"
+  },
+  "prisma": {
+    "seed": "bun prisma/seed.ts"
+  },
+  "scripts": {
+    "prepare": "husky"
+  }
+}

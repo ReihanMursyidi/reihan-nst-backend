@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS ---
+enum Role {
+  PM
+  INTERNAL
+  CLIENT
+}
+
+enum Department {
+  UI_UX
+  FRONTEND
+  BACKEND
+  NONE // Untuk PM atau Client
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+// --- MODELS ---
+
+model User {
+  id         String     @id @default(uuid())
+  email      String     @unique
+  password   String
+  name       String
+  role       Role
+  department Department @default(NONE)
+  
+  // Relasi
+  assignedTasks Task[]     @relation("TaskAssignee")
+  auditLogs     AuditLog[] // Jejak siapa yang mengubah data
+
+  // Soft Delete
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Project {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  clientId    String? // Menyimpan ID user dengan role CLIENT
+
+  // Relasi
+  tasks Task[]
+
+  // Soft Delete
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  title           String
+  description     String?
+  status          TaskStatus @default(TODO)
+  isClientVisible Boolean    @default(false) // Syarat agar Client Guest bisa melihat task
+  version         Int        @default(0)     // Syarat mutlak untuk Optimistic Locking (Mencegah konflik)
+
+  // Relasi Foreign Keys
+  projectId  String
+  assigneeId String?
+  
+  project  Project @relation(fields: [projectId], references: [id])
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  // Dependensi Task (Many-to-Many self-relation)
+  // blockedBy: Daftar task yang HARUS SELESAI sebelum task ini bisa dikerjakan
+  blockedBy TaskDependency[] @relation("TaskBlockedBy")
+  // blocks: Daftar task lain yang bergantung pada task ini
+  blocks    TaskDependency[] @relation("TaskBlocks")
+
+  // Soft Delete
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model TaskDependency {
+  id String @id @default(uuid())
+  
+  taskId       String // ID task yang tertahan (Blocked Task)
+  dependsOnId  String // ID task yang harus selesai (Prerequisite Task)
+
+  task      Task @relation("TaskBlockedBy", fields: [taskId], references: [id])
+  dependsOn Task @relation("TaskBlocks", fields: [dependsOnId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, dependsOnId])
+}
+
+// Audit Trail Immutable: Setiap perubahan status/deskripsi harus dicatat di sini
+model AuditLog {
+  id            String   @id @default(uuid())
+  entityId      String   // ID dari Task atau entitas lain yang diubah
+  entityType    String   // Contoh: "Task"
+  columnChanged String   // Kolom yang berubah (contoh: "status", "description")
+  oldValue      String?  // Nilai sebelum diubah
+  newValue      String?  // Nilai setelah diubah
+  
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  
+  createdAt     DateTime @default(now())
+}
