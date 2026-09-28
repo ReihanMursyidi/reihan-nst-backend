@@ -25,7 +25,12 @@ authRoutes.post('/login', async (c) => {
          return c.json({ error: 'Kredensial salah' }, 401);
       }
 
-      const secret = process.env.JWT_SECRET || 'rahasia-super-aman-untuk-assessment-nst';
+      const secret = process.env.JWT_SECRET;
+      if (!secret) {
+         console.error('FATAL ERROR: JWT_SECRET is not set in .env');
+         return c.json({ error: 'Internal Server Error: Server configuration invalid' }, 500);
+      }
+      
       const token = jwt.sign(
          { id: user.id, role: user.role, department: user.department },
          secret,
