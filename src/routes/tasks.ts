@@ -1,4 +1,6 @@
 import { Role, TaskStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import { BuildQueryFilter, extractQueryFromParams } from '@nodewave/prisma-ezfilter';
 import { authenticate } from "../middlewares/auth";
 import { prisma } from "../prisma";
 import { Hono } from "hono";
@@ -11,7 +13,81 @@ const updateStatusSchema = z.object({
    version: z.number().int(),
 });
 
+const taskQueryBuilder = new BuildQueryFilter({
+   allowedFields: ['title', 'description', 'status', 'projectId', 'assigneeId', 'isClientVisible', 'createdAt', 'updatedAt'],
+   allowedRelations: ['assignee', 'project'],
+   maxPageSize: 100,
+   defaultPageSize: 20,
+});
 
+// Endpoint get tasks list
+taskRoutes.get('/', authenticate, async (c) => {
+   const user = c.get('user');
+
+   try {
+      // Determine basic conditions based on Role (ABAC)
+      const baseWhere: Prisma.TaskWhereInput = { deletedAt: null };
+
+      if (user.role === Role.CLIENT) {
+         baseWhere.isClientVisible = true;
+         baseWhere.project = { clientId: user.id };
+      } else if (user.role === Role.INTERNAL) {
+         baseWhere.assigneeId = user.id;
+      }
+
+      const queryParams = c.req.query();
+      const filter = extractQueryFromParams(queryParams);
+      const { query: filterOptions, validation } = taskQueryBuilder.build(filter);
+
+      if (!validation.isValid) {
+         return c.json({ error: 'Invalid task filters', details: validation.errors }, 400);
+      }
+
+      // Execute Query to Database
+      const tasks = await prisma.task.findMany({
+         where: {
+            AND: [baseWhere, filterOptions.where],
+         },
+         skip: filterOptions.skip,
+         take: filterOptions.take,
+         orderBy: filterOptions.orderBy,
+         include: {
+            assignee: {
+               select: { id: true, name: true, department: true }
+            },
+            project: {
+               select: { id: true, name: true }
+            }
+         }
+      });
+
+      const maskedTasks = tasks.map(task => {
+         if (user.role === Role.CLIENT) {
+            const { assignee, assigneeId, ...safeTask } = task;
+            return safeTask;
+         }
+         return task;
+      });
+
+      // Calculate the total number of records for frontend pagination purposes
+      const totalCount = await prisma.task.count({
+         where: { AND: [baseWhere, filterOptions.where] }
+      });
+
+      return c.json({
+         data: maskedTasks,
+         meta: {
+            total: totalCount,
+            page: Number(queryParams.page) || 1,
+            limit: filterOptions.take,
+         }
+      });
+   
+   } catch (error) {
+      console.error(error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+   }
+});
 
 // Endpoint change task status
 taskRoutes.patch('/:id/status', authenticate, async (c) => {
