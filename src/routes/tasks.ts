@@ -14,6 +14,15 @@ const updateStatusSchema = z.object({
    version: z.number().int(),
 });
 
+// Validation schema for updating task details (PM Only)
+const updateTaskDetailSchema = z.object({
+   title: z.string().min(1).optional(),
+   description: z.string().nullable().optional(),
+   assigneeId: z.string().uuid().nullable().optional(),
+   isClientVisible: z.boolean().optional(),
+   version: z.number().int(),
+});
+
 const taskQueryBuilder = new BuildQueryFilter({
    allowedFields: ['title', 'description', 'status', 'projectId', 'assigneeId', 'isClientVisible', 'createdAt', 'updatedAt'],
    allowedRelations: ['assignee', 'project'],
@@ -259,6 +268,124 @@ taskRoutes.patch('/:id/status', authenticate, async (c) => {
          }, 409);
       }
       
+      return c.json({ error: 'Internal Server Error' }, 500);
+   }
+});
+
+// Endpoint update task details (Only PM allowed to access)
+taskRoutes.patch('/:id', authenticate, requireRole(['PM']), async (c) => {
+   const taskId = c.req.param('id');
+   const user = c.get('user');
+
+   if (!taskId) {
+      return c.json({ error: 'Task ID is required' }, 400);
+   }
+
+   try {
+      const body = await c.req.json();
+      const parsed = updateTaskDetailSchema.safeParse(body);
+
+      if (!parsed.success) {
+         return c.json({
+            error: 'Input invalid',
+            details: parsed.error.format()
+         }, 400);
+      }
+
+      const { version: expectedVersion, ...updateData } = parsed.data;
+
+      const currentTask = await prisma.task.findUnique({
+         where: { id: taskId, deletedAt: null },
+      });
+
+      if (!currentTask) {
+         return c.json({ error: 'Task not found' }, 404);
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+         const updatedTask = await tx.task.updateMany({
+            where: {
+               id: taskId,
+               version: expectedVersion,
+            },
+            data: {
+               ...updateData,
+               version: { increment: 1 },
+            },
+         });
+
+         if (updatedTask.count === 0) {
+            throw new Error('CONCURRENCY_CONFLICT');
+         }
+
+         await tx.auditLog.create({
+            data: {
+               entityId: taskId,
+               entityType: 'Task',
+               columnChanged: 'DETAILS',
+               oldValue: currentTask.title,
+               newValue: updateData.title || currentTask.title,
+               userId: user.id,
+            }
+         });
+
+         return tx.task.findUnique({ where: { id: taskId } });
+      });
+
+      return c.json({ message: 'Task details updated successfully', task: result });
+
+   } catch (error: any) {
+      if (error.message === 'CONCURRENCY_CONFLICT') {
+         return c.json({
+            error: 'Conflict (409): This data has just been modified by another user. Please refresh the page to get the latest data.'
+         }, 409);
+      }
+      console.error(error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+   }
+});
+
+// Endpoint soft delete task (Only PM allowed to access)
+taskRoutes.delete('/:id', authenticate, requireRole(['PM']), async (c) => {
+   const taskId = c.req.param('id');
+   const user = c.get('user');
+
+   if (!taskId) {
+      return c.json({ error: 'Task ID is required' }, 400);
+   }
+
+   try {
+      const currentTask = await prisma.task.findUnique({
+         where: { id: taskId, deletedAt: null },
+      });
+
+      if (!currentTask) {
+         return c.json({ error: 'Task not found' }, 404);
+      }
+
+      // Execute soft delete mechanism
+      await prisma.$transaction(async (tx) => {
+         await tx.task.update({
+            where: { id: taskId },
+            data: { deletedAt: new Date() } // Soft delete is mandatory
+         });
+
+         await tx.auditLog.create({
+            data: {
+               entityId: taskId,
+               entityType: 'Task',
+               columnChanged: 'DELETED',
+               oldValue: currentTask.title,
+               newValue: 'SOFT_DELETED',
+               userId: user.id,
+            }
+         });
+      });
+
+      return c.json({ message: 'Task deleted successfully (Soft Delete)' });
+
+   } catch (error) {
+      console.error(error);
       return c.json({ error: 'Internal Server Error' }, 500);
    }
 });
