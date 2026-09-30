@@ -59,3 +59,17 @@ export const authenticate = async (c: Context, next: Next) => {
    c.set('user', decoded);
    await next();
 }
+
+export const requireRole = (allowedRoles: Role[]) => async (c: Context, next: Next) => {
+   const user = c.get('user');
+
+   if (!isJwtPayload(user)) {
+      return c.json({ error: 'Unauthorized: User not authenticated' }, 401);
+   }
+
+   if (!allowedRoles.includes(user.role)) {
+      return c.json({ error: 'Forbidden: Insufficient permissions' }, 403);
+   }
+
+   await next();
+};

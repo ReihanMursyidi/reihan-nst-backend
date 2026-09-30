@@ -1,10 +1,11 @@
 import { Role, TaskStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { BuildQueryFilter, extractQueryFromParams } from '@nodewave/prisma-ezfilter';
-import { authenticate } from "../middlewares/auth";
+import { authenticate, requireRole } from "../middlewares/auth";
 import { prisma } from "../prisma";
 import { Hono } from "hono";
 import z from "zod";
+import { toSSG } from "hono/ssg";
 
 export const taskRoutes = new Hono();
 
@@ -82,6 +83,88 @@ taskRoutes.get('/', authenticate, async (c) => {
             limit: filterOptions.take,
          }
       });
+   
+   } catch (error) {
+      console.error(error);
+      return c.json({ error: 'Internal Server Error' }, 500);
+   }
+});
+
+// Validation schema for creating a new task
+const createTaskSchema = z.object({
+   title: z.string().min(1, 'Title is required'),
+   description: z.string().optional(),
+   projectId: z.string().uuid(),
+   assigneeId: z.string().uuid().optional(),
+   isClientVisible: z.boolean().default(false),
+   dependsOn: z.array(z.string().uuid()).optional(),
+});
+
+// Endpoint create task (Only PM allowed to access)
+taskRoutes.post('/', authenticate, requireRole(['PM']), async (c) => {
+   const user = c.get('user');
+
+   try {
+      const body = await c.req.json();
+      const parsed = createTaskSchema.safeParse(body);
+
+      if (!parsed.success) {
+         return c.json({
+            error: 'Input invalid',
+            details: parsed.error.format() 
+         }, 400);
+      }
+
+      const { 
+         title, description, projectId, assigneeId, 
+         isClientVisible, dependsOn 
+      } = parsed.data;
+
+      const projectExists = await prisma.project.findUnique({ where: { id: projectId} });
+      if (!projectExists) {
+         return c.json({ error: 'Project not found' }, 404);
+      }
+
+      // Execute task creation
+      const newTask = await prisma.$transaction(async (tx) => {
+         // Create Main Task
+         const task = await tx.task.create({
+            data: {
+               title, description, projectId, assigneeId, 
+               isClientVisible, status: TaskStatus.TODO, 
+               version: 0,
+            }
+         });
+
+         // Mapping dependencies
+         if (dependsOn && dependsOn.length > 0) {
+            const dependencyData = dependsOn.map((dependsOnId) => ({
+               taskId: task.id,
+               dependsOnId: dependsOnId
+            }));
+
+            await tx.taskDependency.createMany({
+               data: dependencyData
+            });
+         }
+
+         // Record in the Immutable Audit Trail
+         await tx.auditLog.create({
+            data: {
+               entityId: task.id,
+               entityType: 'Task',
+               columnChanged: 'CREATED',
+               newValue: title,
+               userId: user.id,
+            }
+         });
+
+         return task;
+      });
+
+      return c.json({
+         message: 'Task created successfully', task: newTask
+      }, 201);
    
    } catch (error) {
       console.error(error);
