@@ -16,13 +16,13 @@ authRoutes.post('/login', async (c) => {
       const parsed = loginSchema.safeParse(body);
       
       if (!parsed.success) {
-         return c.json({ error: 'Input tidak valid', details: parsed.error.format() }, 400);
+         return c.json({ error: 'Invalid input', details: parsed.error.format() }, 400);
       }
 
       const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
       
       if (!user || user.password !== parsed.data.password) {
-         return c.json({ error: 'Kredensial salah' }, 401);
+         return c.json({ error: 'Wrong credentials' }, 401);
       }
 
       const secret = process.env.JWT_SECRET;
@@ -38,7 +38,7 @@ authRoutes.post('/login', async (c) => {
       );
 
       return c.json({ 
-         message: 'Login berhasil', 
+         message: 'Login success', 
          token, 
          user: { id: user.id, name: user.name, role: user.role, department: user.department } 
       });

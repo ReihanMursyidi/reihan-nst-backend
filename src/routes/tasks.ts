@@ -11,6 +11,8 @@ const updateStatusSchema = z.object({
    version: z.number().int(),
 });
 
+
+
 // Endpoint change task status
 taskRoutes.patch('/:id/status', authenticate, async (c) => {
    const taskId = c.req.param('id');
