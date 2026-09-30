@@ -6,6 +6,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
+    "@types/bcryptjs": "^3.0.0",
     "@types/bun": "latest",
     "@types/jsonwebtoken": "^9.0.10",
     "husky": "^9.1.7",
@@ -15,8 +16,9 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0",
     "@nodewave/prisma-ezfilter": "^0.2.1",
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
     "hono": "^4.13.10",
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.6.5"
