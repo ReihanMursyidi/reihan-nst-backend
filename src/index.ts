@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth';
 import type { JwtPayload } from './middlewares/auth';
 import { taskRoutes } from './routes/tasks';
+import { userRoutes } from './routes/users';
 
 declare module 'hono' {
    interface ContextVariableMap {
@@ -21,6 +22,7 @@ app.get('/', (c) => c.text('NST Assessment API - Running on Bun & Hono'));
 // Mount rute
 app.route('/api/auth', authRoutes);
 app.route('/api/tasks', taskRoutes);
+app.route('/api/users', userRoutes);
 
 // Port Config for Bun
 export default {

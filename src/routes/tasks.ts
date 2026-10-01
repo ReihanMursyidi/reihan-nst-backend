@@ -159,7 +159,7 @@ taskRoutes.post('/', async (c) => {
 // 3. PATCH /tasks/:id/status (PM & Internal)
 taskRoutes.patch('/:id/status', async (c) => {
    const taskId = c.req.param('id');
-   const user = c.get('user') as TaskUser;
+   const dbUser = c.get('user') as TaskUser;
 
    try {
       const body = await c.req.json();
@@ -175,14 +175,20 @@ taskRoutes.patch('/:id/status', async (c) => {
 
       if (!currentTask) return c.json({ error: 'Task not found' }, 404);
 
-      if (hasRole(user, Role.PM) && newStatus === TaskStatus.DONE) {
+      if (hasRole(dbUser, Role.PM) && newStatus === TaskStatus.DONE) {
          return c.json({ error: 'PM is not allowed to change status to DONE' }, 403);
       }
 
-      if (hasRole(user, Role.INTERNAL) && newStatus === TaskStatus.IN_PROGRESS) {
+      if (
+         hasRole(dbUser, Role.INTERNAL) &&
+         (newStatus === TaskStatus.IN_PROGRESS || newStatus === TaskStatus.DONE)
+      ) {
          const pendingDependencies = currentTask.blockedBy.filter(dep => dep.dependsOn.status !== TaskStatus.DONE);
          if (pendingDependencies.length > 0) {
-            return c.json({ error: 'State-Based Permission Error: This task is currently blocked.', blockedBy: pendingDependencies.map(d => d.dependsOn.title) }, 403);
+            return c.json({
+               error: 'Task blocked (Dependency Blocker). Finish the prerequisites first.',
+               blockedBy: pendingDependencies.map(d => d.dependsOn.title),
+            }, 403);
          }
       }
 
@@ -195,7 +201,7 @@ taskRoutes.patch('/:id/status', async (c) => {
          if (updatedTask.count === 0) throw new Error ('CONCURRENCY_CONFLICT');
 
          await tx.auditLog.create({
-            data: { entityId: taskId, entityType: 'Task', columnChanged: 'status', oldValue: currentTask.status, newValue: newStatus, userId: user.id }
+            data: { entityId: taskId, entityType: 'Task', columnChanged: 'status', oldValue: currentTask.status, newValue: newStatus, userId: dbUser.id }
          });
          return tx.task.findUnique({ where: { id: taskId } });
       });
