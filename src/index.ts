@@ -5,6 +5,14 @@ import type { JwtPayload } from './middlewares/auth';
 import { taskRoutes } from './routes/tasks';
 import { userRoutes } from './routes/users';
 
+process.on('uncaughtException', (err) => {
+   console.error('UNCAUGHT EXCEPTION DI RAILWAY:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+   console.error('UNHANDLED REJECTION DI RAILWAY:', reason);
+});
+
 declare module 'hono' {
    interface ContextVariableMap {
       user: JwtPayload;
