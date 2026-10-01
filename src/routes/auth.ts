@@ -147,6 +147,7 @@ authRoutes.post('/login', async (c) => {
          user: { id: user.id, name: user.name, role: user.role, department: user.department } 
       });
    } catch (error) {
+      console.error("💥 ERROR SAAT LOGIN:", error); 
       return c.json({ error: 'Internal Server Error' }, 500);
    }
 });
