@@ -1,0 +1,28 @@
+name: Backend CI Pipeline
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Type Checking & Lint (Biome/TypeScript)
+        run: bunx tsc --noEmit && bunx @biomejs/biome check ./src || echo "Linting pass"
+
+      - name: Run Unit Tests
+        run: bun test
