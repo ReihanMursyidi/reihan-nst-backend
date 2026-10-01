@@ -22,7 +22,15 @@ declare module 'hono' {
 export const app = new Hono();
 
 // Basic Middleware
-app.use('/*', cors());
+app.use('/*', cors({
+   origin: [
+     'http://localhost:3000', // Untuk lokal
+     'https://reihan-nst-assessment.vercel.app' // <-- URL Frontend Vercel-mu (TANPA / slash di belakang)
+   ],
+   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+   allowHeaders: ['Content-Type', 'Authorization'],
+   credentials: true,
+}));
 
 // Health check
 app.get('/', (c) => c.text('NST Assessment API - Running on Bun & Hono'));
