@@ -5,4 +5,4 @@ export const config = {
   runtime: 'nodejs',
 };
 
-export default handle(app);
+export const fetch = handle(app);
