@@ -3,7 +3,8 @@ import type { Context, Next } from "hono";
 import jwt from 'jsonwebtoken';
 
 export interface JwtPayload {
-   id: string;
+   id?: string;
+   userId?: string;
    role: Role;
    department: string;
 }
@@ -16,9 +17,11 @@ const isJwtPayload = (value: unknown): value is JwtPayload => {
       return false;
    }
 
+   const hasId = 'id' in value && typeof value.id === 'string';
+   const hasUserId = 'userId' in value && typeof value.userId === 'string';
+
    return (
-      'id' in value &&
-      typeof value.id === 'string' &&
+      (hasId || hasUserId) &&
       'role' in value &&
       isRole(value.role) &&
       'department' in value &&

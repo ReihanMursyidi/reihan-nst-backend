@@ -69,7 +69,8 @@ model Task {
   status          TaskStatus @default(TODO)
   isClientVisible Boolean    @default(false) // Syarat agar Client Guest bisa melihat task
   version         Int        @default(0)     // Syarat mutlak untuk Optimistic Locking (Mencegah konflik)
-
+  attachments     String[]   @default([])
+  
   // Relasi Foreign Keys
   projectId  String
   assigneeId String?
