@@ -28,6 +28,7 @@
     "seed": "bun prisma/seed.ts"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "prepare": "husky"
   }
 }
