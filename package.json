@@ -1,7 +1,6 @@
 {
   "name": "reihan-nst-backend",
   "module": "index.ts",
-  "type": "module",
   "private": true,
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
